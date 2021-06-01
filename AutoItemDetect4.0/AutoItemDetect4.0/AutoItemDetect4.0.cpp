@@ -12,11 +12,16 @@
 #include <atlbase.h>
 #include <Windows.h>
 
+#include <vector>
+
+
 using namespace std; // 写一个c++小项目
 
 // 可以查询某个地方的注册表，只需要传入不同的路径即可
 // 效果还是ok的
 // 之后用链表写入QT页面即可
+
+// 定义了两个小的全局变量，专门用于数据处理
 
 void OnBnClickedQuery() {
     HKEY hKEY; // 有关的hKEY，在查询结束时关闭
@@ -48,6 +53,8 @@ void OnBnClickedQuery() {
         int i = 0;
         // 一些数据缓冲区
         // 这个就是char，只不过换了一个名字，保证通用性
+
+        WCHAR
         TCHAR szData[MAX_PATH] = { 0 };
         TCHAR subKey[MAX_PATH] = { 0 };
 
