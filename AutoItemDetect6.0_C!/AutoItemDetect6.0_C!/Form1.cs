@@ -20,7 +20,245 @@ namespace AutoItemDetect6._0_C_
             InitializeComponent();
         }
 
+        // 四个链表
+        private List<TargetInformation> LogonList;
+        private List<TargetInformation> DriversList;
+        private List<TargetInformation> ServiceList;
+        private List<TargetInformation> ScheduledList;
         // 给各个表格加上列名
+        private class TargetInformation
+        {
+            public string Name;
+            public string Description;
+            public string ImagePath;
+            public string Publisher;
+            public string timeStamp;
+            public string size;
+            public string owner;
+            // 中式编程 版权
+            public string banquan;
+            public string type;
+            public TargetInformation() 
+            {
+                this.Name = " ";
+                this.Description = " ";
+                this.ImagePath = " ";
+                this.Publisher = " ";
+                this.timeStamp = " ";
+                this.size = " ";
+                this.owner = " ";
+                this.banquan = " ";
+
+            }
+        }
+
+        // 获取注册表下所有键值的路径，被优化过的路径
+        // 需要在外面提供主键类+注册表子键具体路径
+        private List<string> GetTargetPath(RegistryKey targetKeyType, string registerTablePath)
+        {
+
+            List<string> ret = new List<string>();
+
+            // RegistryKey currentUser = Registry.CurrentUser;
+
+            // registerTablePath = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            RegistryKey runData = targetKeyType.OpenSubKey(@registerTablePath);
+
+            // if (runData == null) res += "failing!";
+
+            string[] name_of_auto = runData.GetValueNames();
+
+            int n = name_of_auto.Length;
+
+            List<string> name_of_ = new List<string>();
+            List<string> val_of_ = new List<string>();
+
+            for (int i = 0; i < n; i++)
+            {
+                string name_db = name_of_auto[i];
+                string val_db = (string)runData.GetValue(name_db);
+                // 处理异常数字
+                val_db = this.Process_illegal_path(val_db);
+                val_of_.Add(val_db);
+                name_of_.Add(name_db);
+            }
+
+            // 将键值返回，更加具体的信息需要用shell32库来编写
+            ret = val_of_;
+            return ret;
+        }
+
+        // 传递具体路径，获取解析后的类
+        // type是存下的冗余接口
+        private TargetInformation GetPathDetailedInfo(string path, string type)
+        {
+
+            TargetInformation ret = new TargetInformation();
+            
+
+            FileInfo file_process_class = new FileInfo(path);
+
+
+            Shell32.Shell shell = new Shell32.ShellClass();
+
+
+            Folder folder = shell.NameSpace(path.Substring(0, path.LastIndexOf('\\')));
+
+            FolderItem item = folder.ParseName(path.Substring(path.LastIndexOf('\\') + 1));
+
+            // 不需要字典传参
+            // Dictionary<string, string> Properities = new Dictionary<string, string>();
+
+            int i = 0;
+
+            while (true)
+            {
+                string key = folder.GetDetailsOf(null, i);
+                if (string.IsNullOrEmpty(key))
+                {
+                    break;
+                }
+                string value = folder.GetDetailsOf(item, i);
+
+                // 这里需要适当的异常处理
+
+                i++;
+
+                // 填充写好的类
+                switch (key)
+                {
+                    case "名称":
+                        {
+                            ret.Name = value;
+                            break;
+                        }
+                    case "大小":
+                        {
+                            ret.size = value;
+                            break;
+                        }
+                    case "创建日期":
+                        {
+                            ret.timeStamp = value;
+                            break;
+                        }
+                    case "所有者":
+                        {
+                            ret.owner = value;
+                            break;
+                        }
+                    case "版权":
+                        {
+                            ret.banquan = value;
+                            break;
+                        }
+                    case "公司":
+                        {
+                            ret.Publisher = value;
+                            break;
+                        }
+                    case "文件说明":
+                        {
+                            ret.Description = value;
+                            break;
+                        }
+                    default:
+                        break;
+                }
+                // ret.type = type; //貌似没有必要？
+                ret.ImagePath = path;
+            }
+
+            return ret;
+        }
+
+
+        // 以下四个函数，就是为了快速填充链表的，效果貌似还可以喽？
+        private void GetLogonInfo()
+        {
+            // 不需要传入参数，内部自带参数
+            // 这里会存入很多路径的
+            return;
+        }
+        private void GetDriversInfo()
+        {
+            return;
+        }
+        private void GetScheduledInfo()
+        {
+            return;
+        }
+        // 直接写drivers有问题？
+        private void GetServicesInfo()
+        {
+            return;
+        }
+
+        private void putDataIntoDataGridView(List<TargetInformation> infoList, DataGridView targetDataGridView)
+        {
+            // 循环遍历，将数据一点点填入这个表格，内容总是清晰地
+
+            // 这种填充函数，其实给了快速处理数据的机会了
+
+            int n = infoList.Count;
+            int index = 0;
+
+            for(int i=0; i<n; i++)
+            {
+                TargetInformation tmp = infoList[i];
+                index = targetDataGridView.Rows.Add();
+
+                // Autorun Entry
+                targetDataGridView.Rows[index].Cells[0].Value = tmp.Name;
+                // Description
+                targetDataGridView.Rows[index].Cells[1].Value = tmp.Description;
+                // Publisher
+                targetDataGridView.Rows[index].Cells[2].Value = tmp.Publisher;
+                // ImagePath?没有存储
+                targetDataGridView.Rows[index].Cells[3].Value = tmp.ImagePath;
+                // timeStamp 时间戳
+                targetDataGridView.Rows[index].Cells[4].Value = tmp.timeStamp;
+
+
+            }
+
+            return;
+        }
+        private void putDataIntoDataGridView_total(DataGridView targetDataGridView)
+        {
+            this.putDataIntoDataGridView(this.LogonList, this.dataGridView1);
+            this.putDataIntoDataGridView(this.ServiceList, this.dataGridView1);
+            this.putDataIntoDataGridView(this.DriversList, this.dataGridView1);
+            this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView1);
+
+            return;
+        }
+
+        private void InitialAllType()
+        {
+            // 暂时先不使用多线程开发，先开发一个小函数
+            this.GetLogonInfo();
+            this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
+
+            this.GetServicesInfo();
+            this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
+
+            this.GetDriversInfo();
+            this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
+
+            this.GetScheduledInfo();
+            this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
+
+
+
+            // 最后还要把最后一列填充进去，逻辑是严谨的
+            this.putDataIntoDataGridView_total(this.dataGridView1);
+
+            // this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
+        }
+
+        // 两个比较简单的处理类，类似于一个小工具
+        // 初始化表格列名
         private void Initial_columns(object sender, DataGridView tmp)
         {
             DataGridViewTextBoxColumn autorun_entry = new DataGridViewTextBoxColumn();
@@ -90,33 +328,18 @@ namespace AutoItemDetect6._0_C_
             return res;
         }
 
+
+
+
+
+        // 早期测试写出的类，以后移植时，首先处理这里的类
+
         // 根据文件路径，获取对应的信息
         private Dictionary<string, string> Get_file_information(string path)
         {
-            // File提供了很多静态方法，直接调用即可
-            // FileInfo也是同一类型，但是方法不是静态
 
 
             FileInfo file_process_class = new FileInfo(path);
-
-            // 根据文件路径，获取了一些基本信息
-            // 这里一直在处理各种格式信息，我真的是直接醉了
-
-
-            // 文件路径是正确的
-            /*
-             
-            string name = file_process_class.Name;
-            string timestamp = file_process_class.CreationTime.ToShortDateString();
-            string ImagePath = path;
-
-            int index = this.dataGridView2.Rows.Add();
-
-            this.dataGridView2.Rows[index].Cells[0].Value = name;
-            this.dataGridView2.Rows[index].Cells[1].Value = timestamp;
-            this.dataGridView2.Rows[index].Cells[2].Value = ImagePath;
-
-            */
 
 
             Shell32.Shell shell = new Shell32.ShellClass();
@@ -150,8 +373,7 @@ namespace AutoItemDetect6._0_C_
 
             return Properities;
         }
-
-        // private 
+        // private test
         private void test_of_dataGridView2(object sender)
         {
             // 在这里的内部，完成所有信息获取
@@ -219,6 +441,7 @@ namespace AutoItemDetect6._0_C_
 
 
         }
+        // private test code
         private void test_of_dataGridView1(object sender, DataGridView target_dataGridView)
         {
             // 以下是一个比较完整的读取注册表的流程
@@ -292,7 +515,7 @@ namespace AutoItemDetect6._0_C_
         }
         
 
-        // 最后这里还是要加入一些数据结构的设计，以及程序流程的设计，很难受。
+        // Form1的初始化设计
         private void Form1_Load(object sender, EventArgs e)
         {
             // 这里初始化控件的列，是需要考虑的
@@ -307,33 +530,8 @@ namespace AutoItemDetect6._0_C_
 
             this.test_of_dataGridView2(sender);
 
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-
-            
-        }
-
-        // C#
-        private void listView1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void splitContainer1_Panel2_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-        private void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
-        {
-
-        }
-
-        private void flowLayoutPanel1_Paint(object sender, PaintEventArgs e)
-        {
-
+            // 以下这个函数含有整个程序的架构，至此，本程序框架基本搭好了
+            this.InitialAllType();
         }
 
         private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
