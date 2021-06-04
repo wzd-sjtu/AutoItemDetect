@@ -13,3 +13,6 @@ C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!
 C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\obj\Debug\netcoreapp3.1\AutoItemDetect6.0_C!.pdb
 C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\obj\Debug\netcoreapp3.1\AutoItemDetect6.0_C!.genruntimeconfig.cache
 C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\obj\Debug\netcoreapp3.1\AutoItemDetect6.0_C!.csprojAssemblyReference.cache
+C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\bin\Debug\netcoreapp3.1\Interop.Shell32.dll
+C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\obj\Debug\netcoreapp3.1\Interop.Shell32.dll
+C:\Users\dell\Desktop\WindowsStartItem\AutoItemDetect6.0_C!\AutoItemDetect6.0_C!\obj\Debug\netcoreapp3.1\AutoItemDetect6.0_C!.csproj.ResolveComReference.cache

@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Shell32;
 
 namespace AutoItemDetect6._0_C_
 {
@@ -90,20 +91,133 @@ namespace AutoItemDetect6._0_C_
         }
 
         // 根据文件路径，获取对应的信息
-        private void Get_file_information(string path)
+        private Dictionary<string, string> Get_file_information(string path)
         {
             // File提供了很多静态方法，直接调用即可
             // FileInfo也是同一类型，但是方法不是静态
+
+
             FileInfo file_process_class = new FileInfo(path);
 
             // 根据文件路径，获取了一些基本信息
             // 这里一直在处理各种格式信息，我真的是直接醉了
+
+
+            // 文件路径是正确的
+            /*
+             
             string name = file_process_class.Name;
             string timestamp = file_process_class.CreationTime.ToShortDateString();
             string ImagePath = path;
 
+            int index = this.dataGridView2.Rows.Add();
+
+            this.dataGridView2.Rows[index].Cells[0].Value = name;
+            this.dataGridView2.Rows[index].Cells[1].Value = timestamp;
+            this.dataGridView2.Rows[index].Cells[2].Value = ImagePath;
+
+            */
+
+
+            Shell32.Shell shell = new Shell32.ShellClass();
+
+
+            Folder folder = shell.NameSpace(path.Substring(0,path.LastIndexOf('\\')));
+
+            FolderItem item = folder.ParseName(path.Substring(path.LastIndexOf('\\') + 1));
+
+            Dictionary<string, string> Properities = new Dictionary<string, string>();
+
+            int i = 0;
+
+            while(true)
+            {
+                string key = folder.GetDetailsOf(null, i);
+                if(string.IsNullOrEmpty(key))
+                {
+                    break;
+                }
+                string value = folder.GetDetailsOf(item, i);
+
+                // 这里需要适当的异常处理
+                if(!Properities.ContainsKey(key))
+                    Properities.Add(key, value);
+
+                i++;
+            }
+
+            // 这个ShellClass的API应当如何使用呢？网上暂时找不到资料？
+
+            return Properities;
+        }
+
+        // private 
+        private void test_of_dataGridView2(object sender)
+        {
+            // 在这里的内部，完成所有信息获取
+            // 以下是一个比较完整的读取注册表的流程
+            // 可惜的是，并没有实现完全的前后端分离
+
+            // 想要获取详细信息，需要用shell类，这一点是需要时刻谨记的
+            ListViewItem tmp = new ListViewItem(
+                new string[] { "path" });
+
+            this.listView1.Items.Add(tmp);
+
+            // 这里涉及到内容提取了
+
+            RegistryKey currentUser = Registry.CurrentUser;
+            // 一层层向下打开
+            RegistryKey runData = currentUser.OpenSubKey(@"Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+
+            // if (runData == null) res += "failing!";
+
+            string[] name_of_auto = runData.GetValueNames();
+
+            // 以下这个键已经被关闭了
+            // currentUser.Close();
+
+            string res = "";
+            int n = name_of_auto.Length;
+
+            res += n.ToString();
+
+            List<string> name_of_ = new List<string>();
+            List<string> val_of_ = new List<string>();
+
+            string tset = "";
+            for (int i = 0; i < n; i++)
+            {
+                string name_db = name_of_auto[i];
+                string val_db = (string)runData.GetValue(name_db);
+
+                val_db = this.Process_illegal_path(val_db);
+                res += " ";
+                val_of_.Add(val_db);
+                name_of_.Add(name_db);
+                if(i == 0)
+                    tset = val_db;
+            }
+
+            // 我们实验的路径就是tset的信息哦
+            // 信息总归是恒定的
+
+            Dictionary<string, string> ret = Get_file_information(tset);
+            // Dictionary<string, string> ret = new Dictionary<string, string>();
+
+            foreach (var item in ret)
+            {
+                int index = this.dataGridView2.Rows.Add();
+
+                this.dataGridView2.Rows[index].Cells[0].Value = item.Key;
+
+                this.dataGridView2.Rows[index].Cells[1].Value = item.Value;
+
+            }
 
             return;
+
+
         }
         private void test_of_dataGridView1(object sender, DataGridView target_dataGridView)
         {
@@ -176,6 +290,9 @@ namespace AutoItemDetect6._0_C_
 
             return;
         }
+        
+
+        // 最后这里还是要加入一些数据结构的设计，以及程序流程的设计，很难受。
         private void Form1_Load(object sender, EventArgs e)
         {
             // 这里初始化控件的列，是需要考虑的
@@ -187,6 +304,9 @@ namespace AutoItemDetect6._0_C_
             this.Initial_columns(sender, this.dataGridView5);
 
             this.test_of_dataGridView1(sender, this.dataGridView1);
+
+            this.test_of_dataGridView2(sender);
+
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -222,6 +342,11 @@ namespace AutoItemDetect6._0_C_
         }
 
         private void dataGridView5_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
         {
 
         }
