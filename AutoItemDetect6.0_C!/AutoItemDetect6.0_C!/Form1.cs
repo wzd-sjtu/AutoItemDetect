@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Shell32;
 
+// 记得加上一个单独的注册表条目，提高程序的可读性
+
 namespace AutoItemDetect6._0_C_
 {
     public partial class Form1 : Form
@@ -38,6 +40,8 @@ namespace AutoItemDetect6._0_C_
             // 中式编程 版权
             public string banquan;
             public string type;
+
+            public bool isSingleData;
             public TargetInformation() 
             {
                 this.Name = " ";
@@ -48,7 +52,7 @@ namespace AutoItemDetect6._0_C_
                 this.size = " ";
                 this.owner = " ";
                 this.banquan = " ";
-
+                this.type = " ";
             }
         }
 
@@ -64,9 +68,17 @@ namespace AutoItemDetect6._0_C_
             // registerTablePath = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
             RegistryKey runData = targetKeyType.OpenSubKey(@registerTablePath);
 
-            // if (runData == null) res += "failing!";
+            if (runData == null) return new List<string>();
 
-            string[] name_of_auto = runData.GetValueNames();
+            string[] name_of_auto = { };
+            string[] qq = runData.GetValueNames();
+
+            // 一些空异常处理,这里出现了打开key失败？
+            if(qq != null)
+            {
+                name_of_auto = qq;
+            }
+           
 
             int n = name_of_auto.Length;
 
@@ -167,17 +179,88 @@ namespace AutoItemDetect6._0_C_
                 }
                 // ret.type = type; //貌似没有必要？
                 ret.ImagePath = path;
+                ret.isSingleData = true;
             }
 
             return ret;
         }
 
+        // type是冗余参数，可以任意取值，是没有意义的参数
+        private void putDataIntoList(List<string> registerTablePath, List<TargetInformation> target, RegistryKey MainKey, string type)
+        {
+            
+            foreach(string path in registerTablePath)
+            {
+                // 子健无法完全确定？
+
+                List<string> programPathRes = this.GetTargetPath(MainKey, path);
+                TargetInformation highestLevel = new TargetInformation();
+                highestLevel.isSingleData = false;
+
+                // 很多别的地方的系统权限注册表无法读取，应当是没有调用对应的接口，导致无法获取
+                // 现在整个程序需要向虚拟机转移，从而完成最终的目标
+                string tmp_path = "";
+                if(MainKey == Registry.LocalMachine)
+                {
+                    tmp_path = "HKLM//" + path;
+                }
+                else if(MainKey == Registry.CurrentUser)
+                {
+                    tmp_path = "HKCU//" + path;
+                }
+
+                highestLevel.ImagePath = tmp_path;
+                target.Add(highestLevel);
+
+                foreach (string absolutePath in programPathRes)
+                {
+                    // 一点异常处理
+                    if (string.IsNullOrEmpty(absolutePath))
+                    {
+                        continue;
+                    }
+                    TargetInformation tmp = this.GetPathDetailedInfo(absolutePath, type);
+                    if (tmp != null)
+                        target.Add(tmp);
+                }
+
+            }
+            return;
+        }
 
         // 以下四个函数，就是为了快速填充链表的，效果貌似还可以喽？
         private void GetLogonInfo()
         {
             // 不需要传入参数，内部自带参数
             // 这里会存入很多路径的
+            string path1 = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            RegistryKey currentUser = Registry.CurrentUser;
+            List<string> list_of_register_key1 = new List<string>();
+            list_of_register_key1.Add(path1);
+
+            // 这里完成了公用代码封装，还算是比较合理的
+            this.putDataIntoList(list_of_register_key1, this.LogonList, currentUser, "Logon");
+
+
+            // 下面是另一个注册表类的封装，内容总归是合理的
+            string path2 = "SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\AlternateShell";
+            string path3 = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
+            string path4 = "SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run";
+            string path5 = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders\\Common Startup";
+            string path6 = "SOFTWARE\\Microsoft\\Active Setup\\Installed Components";
+            string path7 = "SOFTWARE\\Wow6432Node\\Microsoft\\Active Setup\\Installed Components";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key2 = new List<string>();
+
+            list_of_register_key2.Add(path2);
+            list_of_register_key2.Add(path3);
+            list_of_register_key2.Add(path4);
+            list_of_register_key2.Add(path5);
+            list_of_register_key2.Add(path6);
+            list_of_register_key2.Add(path7);
+
+            this.putDataIntoList(list_of_register_key2, this.LogonList, localMachine, "Logon");
+
             return;
         }
         private void GetDriversInfo()
@@ -203,21 +286,31 @@ namespace AutoItemDetect6._0_C_
             int n = infoList.Count;
             int index = 0;
 
+            
             for(int i=0; i<n; i++)
             {
                 TargetInformation tmp = infoList[i];
                 index = targetDataGridView.Rows.Add();
 
-                // Autorun Entry
-                targetDataGridView.Rows[index].Cells[0].Value = tmp.Name;
-                // Description
-                targetDataGridView.Rows[index].Cells[1].Value = tmp.Description;
-                // Publisher
-                targetDataGridView.Rows[index].Cells[2].Value = tmp.Publisher;
-                // ImagePath?没有存储
-                targetDataGridView.Rows[index].Cells[3].Value = tmp.ImagePath;
-                // timeStamp 时间戳
-                targetDataGridView.Rows[index].Cells[4].Value = tmp.timeStamp;
+                if(tmp != null && tmp.isSingleData)
+                {
+                    // Autorun Entry
+                    targetDataGridView.Rows[index].Cells[0].Value = tmp.Name;
+                    // Description
+                    targetDataGridView.Rows[index].Cells[1].Value = tmp.Description;
+                    // Publisher
+                    targetDataGridView.Rows[index].Cells[2].Value = tmp.Publisher;
+                    // ImagePath?没有存储
+                    targetDataGridView.Rows[index].Cells[3].Value = tmp.ImagePath;
+                    // timeStamp 时间戳
+                    targetDataGridView.Rows[index].Cells[4].Value = tmp.timeStamp;
+                }
+                else
+                {
+                    // Autorun Entry
+                    targetDataGridView.Rows[index].Cells[0].Value = tmp.ImagePath;
+                }
+                
 
 
             }
@@ -241,18 +334,18 @@ namespace AutoItemDetect6._0_C_
             this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
 
             this.GetServicesInfo();
-            this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
+            // this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
 
             this.GetDriversInfo();
-            this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
+            // this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
 
             this.GetScheduledInfo();
-            this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
+            // this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
 
 
 
             // 最后还要把最后一列填充进去，逻辑是严谨的
-            this.putDataIntoDataGridView_total(this.dataGridView1);
+            // this.putDataIntoDataGridView_total(this.dataGridView1);
 
             // this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
         }
@@ -519,6 +612,10 @@ namespace AutoItemDetect6._0_C_
         private void Form1_Load(object sender, EventArgs e)
         {
             // 这里初始化控件的列，是需要考虑的
+            this.LogonList = new List<TargetInformation>();
+            this.ScheduledList = new List<TargetInformation>();
+            this.DriversList = new List<TargetInformation>();
+            this.ServiceList = new List<TargetInformation>();
 
             this.Initial_columns(sender, this.dataGridView1);
             this.Initial_columns(sender, this.dataGridView2);
@@ -526,9 +623,10 @@ namespace AutoItemDetect6._0_C_
             this.Initial_columns(sender, this.dataGridView4);
             this.Initial_columns(sender, this.dataGridView5);
 
-            this.test_of_dataGridView1(sender, this.dataGridView1);
+            // 两个较小的测试函数
+            // this.test_of_dataGridView1(sender, this.dataGridView1);
 
-            this.test_of_dataGridView2(sender);
+            // this.test_of_dataGridView2(sender);
 
             // 以下这个函数含有整个程序的架构，至此，本程序框架基本搭好了
             this.InitialAllType();
