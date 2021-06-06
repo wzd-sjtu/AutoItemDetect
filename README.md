@@ -77,6 +77,7 @@ HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon
 ```
 内容为这个键下方的Userinit变量，一般情况下，默认为userinit.exe，但是可用逗号分隔，从而放入多个程序。
 以下是它的截图：（路径是定死的）
+![image](https://user-images.githubusercontent.com/46391254/120929313-2d1f4300-c71b-11eb-89ab-58fe32536edb.png)
 
 ### （3）EXPLORE\RUN键
 注册键为：
@@ -108,6 +109,7 @@ HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
 HEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\RunOnce
 ```
 他们具体长这个样子
+![image](https://user-images.githubusercontent.com/46391254/120929322-390b0500-c71b-11eb-9939-3ddea3ce5678.png)
 
 以下是一个典型的路径：
 C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr
@@ -123,6 +125,8 @@ HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run
 路径都是定死的，其中的启动项都是绝对路径，明文可读，隐蔽性不好，只要扫描全面，很容易被发现。
 
 还有一个注册表重定向的问题，重定向表如下：
+
+![image](https://user-images.githubusercontent.com/46391254/120929327-41fbd680-c71b-11eb-8b0c-2f9be6b8c1ef.png)
 
 
 这是在编写程序，指定注册表路径时，需要考虑的问题。
@@ -146,6 +150,7 @@ HKLM\System\CurrentControlSet\Services
 
 ### （3）services服务源文件路径分析
 对所有内容进行分析，我们得到一些信息如下：
+![image](https://user-images.githubusercontent.com/46391254/120929342-4cb66b80-c71b-11eb-8401-6c1d4471dcdb.png)
 
 
 对于所有的子健，内部元素有以下特征：
@@ -172,6 +177,7 @@ HKLM\System\CurrentControlSet\Services
 ```
 在这个键下面，还有很多子健，每一个子健都有自己的内部属性值。
 下面给出对应的截图：
+![image](https://user-images.githubusercontent.com/46391254/120929355-54761000-c71b-11eb-974a-4c9cb134922f.png)
 
 可以看到，这里有许多键值，代表了不同信息。
 ### （2）start位标记自启动
@@ -181,6 +187,7 @@ HKLM\System\CurrentControlSet\Services
 
 ### （3）Drivers源文件路径分析
 对所有内容进行分析，我们得到一些信息如下：
+```
 \SystemRoot\System32\drivers\1394ohci.sys
 System32\Drivers\360AntiHacker64.sys
 System32\Drivers\360AntiHijack64.sys
@@ -193,6 +200,7 @@ System32\drivers\ACPI.sys
 \SystemRoot\System32\drivers\acpitime.sys
 System32\drivers\ADP80XX.SYS
 \SystemRoot\system32\drivers\afd.sys
+```
 
 对于所有的子健，内部元素有以下特征：
 ImagePath路径需要给出一个统一的处理逻辑：
@@ -227,6 +235,7 @@ string name = t.Name;
 string ImagePath = t.Path;
 ```
 我们将以上信息写入前台，观察效果：
+![image](https://user-images.githubusercontent.com/46391254/120929377-65bf1c80-c71b-11eb-8144-cbd2c93520bc.png)
 
 发现可以获取，但是没有获取完整，只有用户态的计划任务被找了出来，不满足我们的需求。
 
@@ -243,7 +252,13 @@ HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tree
 主要有以下几种情况：
 1.Source、Author、Description三个字段，倘若以@开头，那就一定含有计划任务的绝对路径。
 
+![image](https://user-images.githubusercontent.com/46391254/120929388-7374a200-c71b-11eb-80db-a0e05f56449d.png)
+
+
 对这种路径格式解析，之后再处理目标文件即可。systemRoot是固定的目录。
+
+![image](https://user-images.githubusercontent.com/46391254/120929392-77082900-c71b-11eb-81e9-04d41fc7c9bf.png)
+
 
 这是其中的某一个反例，Description里面居然是中文字符串。
 
@@ -252,6 +267,10 @@ $(@%SystemRoot%\system32\dsregcmd.exe,-102)
 
 另一种情况：
 倘若以上三个字段都没有值，需要解析Actions字段
+
+![image](https://user-images.githubusercontent.com/46391254/120929408-82f3eb00-c71b-11eb-8635-23439be9a807.png)
+
+![image](https://user-images.githubusercontent.com/46391254/120929419-8ab38f80-c71b-11eb-94e8-228771585544.png)
 
 
 
@@ -277,6 +296,15 @@ $(@%SystemRoot%\system32\dsregcmd.exe,-102)
 
 使用C# 和 .Net框架，编写winform程序，实现了一个基础的页面。
 
+![image](https://user-images.githubusercontent.com/46391254/120929427-91420700-c71b-11eb-85c9-851b9512e54a.png)
+
+![image](https://user-images.githubusercontent.com/46391254/120929432-943cf780-c71b-11eb-8713-376e424646ec.png)
+
+![image](https://user-images.githubusercontent.com/46391254/120929437-969f5180-c71b-11eb-857a-41d0ef93ea29.png)
+
+![image](https://user-images.githubusercontent.com/46391254/120929439-9a32d880-c71b-11eb-9c28-5e5e6b86f1d0.png)
+
+![image](https://user-images.githubusercontent.com/46391254/120929442-9dc65f80-c71b-11eb-969e-c9c7f7675cef.png)
 
 
 
