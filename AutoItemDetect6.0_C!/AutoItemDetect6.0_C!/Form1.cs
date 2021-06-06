@@ -10,9 +10,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Shell32;
+using TaskScheduler;
+using System.Threading;
 
 // 记得加上一个单独的注册表条目，提高程序的可读性
-
+// 专门用于输出的函数
+// int index = this.dataGridView1.Rows.Add();
+// this.dataGridView1.Rows[index].Cells[0].Value = tmp_path;
 namespace AutoItemDetect6._0_C_
 {
     public partial class Form1 : Form
@@ -23,6 +27,8 @@ namespace AutoItemDetect6._0_C_
         }
 
         // 四个链表
+        private delegate void MyDelegate(List<TargetInformation> infoList, DataGridView targetDataGridView);
+
         private List<TargetInformation> LogonList;
         private List<TargetInformation> DriversList;
         private List<TargetInformation> ServiceList;
@@ -58,14 +64,18 @@ namespace AutoItemDetect6._0_C_
 
         // 获取注册表下所有键值的路径，被优化过的路径
         // 需要在外面提供主键类+注册表子键具体路径
-        private List<string> GetTargetPath(RegistryKey targetKeyType, string registerTablePath)
+        private List<string> GetTargetPath(RegistryKey targetKeyType, string registerTablePath, string type)
         {
+
+            // 还没有生成type，type需要从高层传递到底层，这样才是较为合理的
 
             List<string> ret = new List<string>();
 
             // RegistryKey currentUser = Registry.CurrentUser;
 
             // registerTablePath = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            // 查询run当然可以直接对应路径，但是查询别的是不成立的，会出现各种问题
+            // 我裂开，底层出问题？
             RegistryKey runData = targetKeyType.OpenSubKey(@registerTablePath);
 
             if (runData == null) return new List<string>();
@@ -85,18 +95,159 @@ namespace AutoItemDetect6._0_C_
             List<string> name_of_ = new List<string>();
             List<string> val_of_ = new List<string>();
 
-            for (int i = 0; i < n; i++)
+            // 居然默认为都是path？那肯定会出问题的
+            // 直接修改底层函数，提高效率
+
+
+            // "Service""Scheduled Task""Drive"
+
+            if (type == "Logon")
             {
-                string name_db = name_of_auto[i];
-                string val_db = (string)runData.GetValue(name_db);
-                // 处理异常数字
-                val_db = this.Process_illegal_path(val_db);
-                val_of_.Add(val_db);
-                name_of_.Add(name_db);
+                for (int i = 0; i < n; i++)
+                {
+                    // 光是getValue了，肯定会出现无法预知的错误
+
+                    string name_db = name_of_auto[i];
+                    string val_db = (string)runData.GetValue(name_db).ToString();
+                    // byte[] reg_binary = { };
+
+                    // 处理异常数字
+                    val_db = this.Process_illegal_path(val_db);
+                    val_of_.Add(val_db);
+                    name_of_.Add(name_db);
+                }
+
+                // 将键值返回，更加具体的信息需要用shell32库来编写
+                ret = val_of_;
+            }
+            // 以下是几个基本类的处理
+            else if(type == "Service")
+            {
+                // 差不多算是写完了Service的内容了，就是加载稍微有点慢，希望加一些按钮进去？
+                // 需要遍历键下面的所有键
+                string[] childKey = runData.GetSubKeyNames();
+                if (childKey == null) 
+                {
+                    childKey = new string[0];
+                }
+                foreach(string child in childKey)
+                {
+                    RegistryKey lowerRunData = runData.OpenSubKey(@child);
+                    string[] name_of_child = { };
+                    string[] wshLove = lowerRunData.GetValueNames();
+                    if(wshLove != null)
+                    {
+                        name_of_child = wshLove;
+                    }
+                    // 第一重筛选，还有第二重筛选，真的头疼哦
+                    if(name_of_child.Contains("ImagePath"))
+                    {
+                        // 暂时说明不是废弃的内容
+                        // 之后需要区分drivers和services
+                        string tmp_path = (string)lowerRunData.GetValue("ImagePath").ToString();
+                        tmp_path = this.Process_illegal_path(tmp_path);
+
+                        int tmp_path_size = tmp_path.Length;
+                        if (tmp_path.Contains("svchost.exe")) // 说明是exe，并且位于svchost里面
+                        {
+                            /*
+                            if(name_of_child.Contains("ServiceDll"))
+                            {
+                                // 表明是正儿八经的服务
+                                string significantPath = (string)lowerRunData.GetValue("ServiceDll").ToString();
+                                ret.Add(significantPath);
+                                // 至此，成功得到所有的path，是合理的吗？
+                            }
+                            */
+                            if(tmp_path.Contains("Description"))
+                            {
+                                // 存储目标dll的文件路径
+                                string zyhLove = (string)lowerRunData.GetValue("Description").ToString();
+                                zyhLove = this.Process_illegal_path_svchost(zyhLove);
+
+                                // 从此存入了目标目录
+                                ret.Add(zyhLove);
+                            }
+                            
+                        }
+                        else if(tmp_path[tmp_path_size-1] == 'e') // 正常的exe
+                        {
+                            ret.Add(tmp_path);
+                        }
+                        // else if(tmp_path[tmp_path_size - 1] == 's') // 说明是sys
+                    }
+
+
+                }
+            }
+            else if (type == "Driver")
+            {
+                // 下面我们来处理Driver的过程？
+                // Drivers文件的统一存储位置
+                // C:\Windows\System32\drivers
+
+                string[] childKey = runData.GetSubKeyNames();
+                if (childKey == null)
+                {
+                    childKey = new string[0];
+                }
+                foreach (string child in childKey)
+                {
+                    RegistryKey lowerRunData = runData.OpenSubKey(@child);
+                    string[] name_of_child = { };
+                    string[] wshLove = lowerRunData.GetValueNames();
+                    if (wshLove != null)
+                    {
+                        name_of_child = wshLove;
+                    }
+                    // 第一重筛选，还有第二重筛选，真的头疼哦
+                    if (name_of_child.Contains("ImagePath"))
+                    {
+                        // 暂时说明不是废弃的内容
+                        string tmp_path = (string)lowerRunData.GetValue("ImagePath").ToString();
+                        tmp_path = this.Process_illegal_path(tmp_path);
+
+                        // 专门用于输出的函数
+
+                        // int tmp_path_size = tmp_path.Length;
+                        if(tmp_path.Contains(".sys") || tmp_path.Contains(".SYS"))
+                        {
+                            if(tmp_path.Contains("\\??\\"))
+                            {
+                                // 需要直接去掉部分内容？
+                                // 4采用的是逻辑分析
+                                // \??\C:\WINDOWS\system32\drivers\360Sensor64.sys
+                                tmp_path = tmp_path.Replace("\\??\\", "");
+                            }
+                            else if(tmp_path.Contains("SystemRoot"))
+                            {
+                                // 需要把Root转换一下
+                                // tmp_path = tmp_path.Replace("SystemRoot", "@%SystemRoot%");
+                                tmp_path = tmp_path.Replace("SystemRoot", "C:\\WINDOWS");
+                            }
+                            else
+                            {
+                                tmp_path = "C:\\WINDOWS\\" + tmp_path;
+                            }
+                            // 去掉头，在加入链表之前，就需要将头部不合法字段去掉
+                            int be_loc = 0;
+                            while (be_loc < tmp_path.Length && tmp_path[be_loc] == '\\') be_loc++;
+                            tmp_path = tmp_path.Substring(be_loc);
+                            ret.Add(tmp_path);
+                            // 无法批量处理，只能一点点处理了
+                            // 而且内容还
+                        }
+                    }
+                }
             }
 
-            // 将键值返回，更加具体的信息需要用shell32库来编写
-            ret = val_of_;
+            else if(type == "Scheduled Task")
+            {
+
+            }
+            
+            
+
             return ret;
         }
 
@@ -104,6 +255,7 @@ namespace AutoItemDetect6._0_C_
         // type是存下的冗余接口
         private TargetInformation GetPathDetailedInfo(string path, string type)
         {
+            if (path == null) return new TargetInformation();
 
             TargetInformation ret = new TargetInformation();
             
@@ -113,11 +265,27 @@ namespace AutoItemDetect6._0_C_
 
             Shell32.Shell shell = new Shell32.ShellClass();
 
+            // int index = this.dataGridView1.Rows.Add();
+            // this.dataGridView1.Rows[index].Cells[0].Value = path;
 
+            // 需要使用别打的权限
+            // 典型的权限不够，无法查看driver的详细信息
             Folder folder = shell.NameSpace(path.Substring(0, path.LastIndexOf('\\')));
+            if (folder is null)
+            {
+                // 不合法的路径需要展示出来
+                // int ii = this.dataGridView1.Rows.Add();
+                // this.dataGridView1.Rows[ii].Cells[0].Value = "WRONG FOLDER!  " + path.Substring(0, path.LastIndexOf('\\'));
 
+                return ret;
+            }
+            else
+            {
+                // int iii = this.dataGridView1.Rows.Add();
+                // this.dataGridView1.Rows[iii].Cells[0].Value = "YES FOLDER!  " + path.Substring(0, path.LastIndexOf('\\'));
+            }
             FolderItem item = folder.ParseName(path.Substring(path.LastIndexOf('\\') + 1));
-
+            if (item is null) return ret;
             // 不需要字典传参
             // Dictionary<string, string> Properities = new Dictionary<string, string>();
 
@@ -193,7 +361,7 @@ namespace AutoItemDetect6._0_C_
             {
                 // 子健无法完全确定？
 
-                List<string> programPathRes = this.GetTargetPath(MainKey, path);
+                List<string> programPathRes = this.GetTargetPath(MainKey, path, type);
                 TargetInformation highestLevel = new TargetInformation();
                 highestLevel.isSingleData = false;
 
@@ -202,11 +370,11 @@ namespace AutoItemDetect6._0_C_
                 string tmp_path = "";
                 if(MainKey == Registry.LocalMachine)
                 {
-                    tmp_path = "HKLM//" + path;
+                    tmp_path = "HKLM\\" + path;
                 }
                 else if(MainKey == Registry.CurrentUser)
                 {
-                    tmp_path = "HKCU//" + path;
+                    tmp_path = "HKCU\\" + path;
                 }
 
                 highestLevel.ImagePath = tmp_path;
@@ -229,10 +397,12 @@ namespace AutoItemDetect6._0_C_
         }
 
         // 以下四个函数，就是为了快速填充链表的，效果貌似还可以喽？
+        // 刚刚处理完Logon类，这个类别算是完整的
         private void GetLogonInfo()
         {
-            // 不需要传入参数，内部自带参数
-            // 这里会存入很多路径的
+            // 和这个链表绑定？
+            
+
             string path1 = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
             RegistryKey currentUser = Registry.CurrentUser;
             List<string> list_of_register_key1 = new List<string>();
@@ -259,23 +429,104 @@ namespace AutoItemDetect6._0_C_
             list_of_register_key2.Add(path6);
             list_of_register_key2.Add(path7);
 
+            // 取出数据
             this.putDataIntoList(list_of_register_key2, this.LogonList, localMachine, "Logon");
-
             return;
         }
         private void GetDriversInfo()
         {
+            // 读取位置和GetServicesInfo完全相似
+
+            string path1 = "System\\CurrentControlSet\\Services";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key1 = new List<string>();
+            list_of_register_key1.Add(path1);
+
+            // 这里完成了公用代码封装，还算是比较合理的
+
+            // 这里是包装类的区别，也就是包装类区别的原因
+            this.putDataIntoList(list_of_register_key1, this.DriversList, localMachine, "Driver");
+
             return;
+        }
+
+        // 这里使用的是操作计划任务的位置，实际上读取注册表是更加合理的
+        private IRegisteredTaskCollection GetAllTasks()
+        {
+            TaskSchedulerClass ts = new TaskSchedulerClass();
+            ts.Connect(null, null, null, null);
+            ITaskFolder folder = ts.GetFolder("\\");
+            IRegisteredTaskCollection task_exists = folder.GetTasks(1);
+
+
+            for(int i=1; i<=task_exists.Count; i++)
+            {
+                IRegisteredTask t = task_exists[i];
+
+                /*
+                public string Name;
+                public string Description;
+                public string ImagePath;
+                public string Publisher;
+                public string timeStamp;
+                public string size;
+                public string owner;
+                // 中式编程 版权
+                public string banquan;
+                public string type;
+
+                public bool isSingleData;
+                */
+
+                string description = t.Definition.Data;
+                string name = t.Name;
+                string ImagePath = t.Path;
+                // 更加详细的信息，需要通过path存取
+
+
+                int index = this.dataGridView1.Rows.Add();
+
+                this.dataGridView1.Rows[index].Cells[0].Value = name;
+
+                this.dataGridView1.Rows[index].Cells[1].Value = ImagePath;
+
+                this.dataGridView1.Rows[index].Cells[2].Value = name;
+
+                // 发现这里的path还需要一些别的定位信息，我直接裂开
+                // 现在要处理这些信息？
+
+            }
+            return task_exists;
         }
         private void GetScheduledInfo()
         {
+            // 这里是完全不同的API接口，谨记
+
+            // 首先测试一下这个多余的类
+
+            this.GetAllTasks();
+
+            /*
+             HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tasks
+             HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tree
+             */
+            string path1 = "Software\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Taskcache\\Tasks";
+            string path2 = "Software\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Taskcache\\Tree";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key1 = new List<string>();
+
+            // HKLM还是Local Machine
+            list_of_register_key1.Add(path1);
+            list_of_register_key1.Add(path2);
+
+            // 这里完成了公用代码封装，还算是比较合理的
+
+            // 这里是包装类的区别，也就是包装类区别的原因
+            this.putDataIntoList(list_of_register_key1, this.ScheduledList, localMachine, "Scheduled Task");
+
             return;
         }
-        // 直接写drivers有问题？
-        private void GetServicesInfo()
-        {
-            return;
-        }
+        
 
         private void putDataIntoDataGridView(List<TargetInformation> infoList, DataGridView targetDataGridView)
         {
@@ -291,8 +542,9 @@ namespace AutoItemDetect6._0_C_
             {
                 TargetInformation tmp = infoList[i];
                 index = targetDataGridView.Rows.Add();
+                // targetDataGridView.Rows[index].Cells[0].Value = tmp.Name;
 
-                if(tmp != null && tmp.isSingleData)
+                if (tmp != null && tmp.isSingleData)
                 {
                     // Autorun Entry
                     targetDataGridView.Rows[index].Cells[0].Value = tmp.Name;
@@ -329,28 +581,51 @@ namespace AutoItemDetect6._0_C_
 
         private void InitialAllType()
         {
-            // 暂时先不使用多线程开发，先开发一个小函数
+
+            // 核心就是这个数据处理冲突了
             this.GetLogonInfo();
             this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
 
-            this.GetServicesInfo();
-            // this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
+            // Services确实经过了处理，但就是不太对劲
+            // this.GetServicesInfo();
+            this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
 
-            this.GetDriversInfo();
-            // this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
+            // this.GetDriversInfo();
+            this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
 
             this.GetScheduledInfo();
-            // this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
+            this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
 
-
-
-            // 最后还要把最后一列填充进去，逻辑是严谨的
+            // 最后还要把最后一列填充进去
             // this.putDataIntoDataGridView_total(this.dataGridView1);
 
             // this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
         }
 
-        // 两个比较简单的处理类，类似于一个小工具
+
+        // Form1的初始化设计
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // 这里初始化控件的列，是需要考虑的
+            this.LogonList = new List<TargetInformation>();
+            this.ScheduledList = new List<TargetInformation>();
+            this.DriversList = new List<TargetInformation>();
+            this.ServiceList = new List<TargetInformation>();
+
+            this.Initial_columns(sender, this.dataGridView1);
+            this.Initial_columns(sender, this.dataGridView2);
+            this.Initial_columns(sender, this.dataGridView3);
+            this.Initial_columns(sender, this.dataGridView4);
+            this.Initial_columns(sender, this.dataGridView5);
+
+            // 关闭非法警告？ 多线程写失败了
+            // Control.CheckForIllegalCrossThreadCalls = false;
+            this.InitialAllType();
+        }
+
+
+
+        // 三个比较简单的处理类，类似于一个小工具
         // 初始化表格列名
         private void Initial_columns(object sender, DataGridView tmp)
         {
@@ -384,6 +659,22 @@ namespace AutoItemDetect6._0_C_
         }
 
         // 处理注册表中获得的路径，让它尽量合理
+        private string Process_illegal_path_svchost(string target_str)
+        {
+            string res = null;
+
+            // 逻辑要清楚，开头是@，用第一个逗号分隔
+            // 不行再说
+            int n = target_str.Length;
+
+            int i = 0;
+            for (i = 1; i < n; i++)
+            {
+                if (target_str[i] == ',') break;
+            }
+            res = target_str.Substring(1, i - 1);
+            return res;
+        }
         private string Process_illegal_path(string target_str)
         {
             string res = null;
@@ -391,11 +682,11 @@ namespace AutoItemDetect6._0_C_
             int n = target_str.Length;
             if (n == 0) return res;
 
-            if(target_str[0] == '"')
+            if (target_str[0] == '"')
             {
-                for(int i=1; i<n; i++)
+                for (int i = 1; i < n; i++)
                 {
-                    if(target_str[i] == '"')
+                    if (target_str[i] == '"')
                     {
                         res = target_str.Substring(1, i - 1);
                         break;
@@ -404,14 +695,14 @@ namespace AutoItemDetect6._0_C_
             }
             else
             {
-                for(int i=1; i<n; i++)
+                for (int i = 1; i < n; i++)
                 {
-                    if(target_str[i] == '-' && target_str[i-1] == ' ')
+                    if (target_str[i] == '-' && target_str[i - 1] == ' ')
                     {
                         res = target_str.Substring(0, i - 1);
                         break;
                     }
-                    if(i == (n-1))
+                    if (i == (n - 1))
                     {
                         res = target_str;
                     }
@@ -421,52 +712,78 @@ namespace AutoItemDetect6._0_C_
             return res;
         }
 
-
-
-
-
-        // 早期测试写出的类，以后移植时，首先处理这里的类
-
-        // 根据文件路径，获取对应的信息
-        private Dictionary<string, string> Get_file_information(string path)
+        // 三个多余的动作
+        private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
         {
 
+        }
 
+        private void dataGridView5_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        // 用于测试的按钮
+        private void button1_Click(object sender, EventArgs e)
+        {
+            // C:\WINDOWS\\system32\\drivers\\lltdio.sys
+            // C:\WINDOWS\\System32\\drivers\\lsi_sas3i.sys
+            // 这个是需要统一的格式，不能加入不合理的东西？
+            string path = "C:\\WINDOWS\\System32\\drivers\\lltdio.sys";
             FileInfo file_process_class = new FileInfo(path);
 
 
             Shell32.Shell shell = new Shell32.ShellClass();
 
+            // int index = this.dataGridView1.Rows.Add();
+            // this.dataGridView1.Rows[index].Cells[0].Value = path;
 
-            Folder folder = shell.NameSpace(path.Substring(0,path.LastIndexOf('\\')));
+            // 需要使用别打的权限
+            // 典型的权限不够，无法查看driver的详细信息
+            Folder folder = shell.NameSpace(path.Substring(0, path.LastIndexOf('\\')));
+            if (folder is null)
+            {
+                int ii = this.dataGridView1.Rows.Add();
+                this.dataGridView1.Rows[ii].Cells[0].Value = "WRONG FOLDER!  " + path.Substring(0, path.LastIndexOf('\\'));
+                return;
+            }
+            else
+            {
 
+                int iii = this.dataGridView1.Rows.Add();
+                this.dataGridView1.Rows[iii].Cells[0].Value = "YES FOLDER!  " + path.Substring(0, path.LastIndexOf('\\'));
+            }
             FolderItem item = folder.ParseName(path.Substring(path.LastIndexOf('\\') + 1));
-
-            Dictionary<string, string> Properities = new Dictionary<string, string>();
+            if (item is null) return;
+            // 不需要字典传参
+            // Dictionary<string, string> Properities = new Dictionary<string, string>();
 
             int i = 0;
 
-            while(true)
+            while (true)
             {
                 string key = folder.GetDetailsOf(null, i);
-                if(string.IsNullOrEmpty(key))
+                if (string.IsNullOrEmpty(key))
                 {
                     break;
                 }
                 string value = folder.GetDetailsOf(item, i);
 
                 // 这里需要适当的异常处理
-                if(!Properities.ContainsKey(key))
-                    Properities.Add(key, value);
-
+                this.listView1.Items.Add(value);
                 i++;
             }
-
-            // 这个ShellClass的API应当如何使用呢？网上暂时找不到资料？
-
-            return Properities;
         }
-        // private test
+
+
+
+
+        // 以下函数可以忽略，开发流程中的中间代码
         private void test_of_dataGridView2(object sender)
         {
             // 在这里的内部，完成所有信息获取
@@ -510,7 +827,7 @@ namespace AutoItemDetect6._0_C_
                 res += " ";
                 val_of_.Add(val_db);
                 name_of_.Add(name_db);
-                if(i == 0)
+                if (i == 0)
                     tset = val_db;
             }
 
@@ -581,15 +898,6 @@ namespace AutoItemDetect6._0_C_
             // 现在已经完成了路径的提取，逻辑较为完善了
 
 
-            /*
-            int index=this.dataGridView1.Rows.Add();
-
-            this.dataGridView1.Rows[index].Cells[0].Value = "1";
-
-            this.dataGridView1.Rows[index].Cells[1].Value = "2";
-
-            this.dataGridView1.Rows[index].Cells[2].Value = "监听";
-             */
             // 以后要把这里的循环改成某个类，和表格一一对应是最好的
             // 最好再加上一个简单的类别转换
 
@@ -597,54 +905,74 @@ namespace AutoItemDetect6._0_C_
             {
                 int index = target_dataGridView.Rows.Add();
 
-                target_dataGridView.Rows[index].Cells[0].Value = val; 
+                target_dataGridView.Rows[index].Cells[0].Value = val;
             }
-            
+
             this.listView1.Items.Add("\n" + res);
 
             this.listView1.Items.Add("\n" + res);
 
             return;
         }
-        
 
-        // Form1的初始化设计
-        private void Form1_Load(object sender, EventArgs e)
+        // 根据文件路径，获取对应的信息
+        private Dictionary<string, string> Get_file_information(string path)
         {
-            // 这里初始化控件的列，是需要考虑的
-            this.LogonList = new List<TargetInformation>();
-            this.ScheduledList = new List<TargetInformation>();
-            this.DriversList = new List<TargetInformation>();
-            this.ServiceList = new List<TargetInformation>();
 
-            this.Initial_columns(sender, this.dataGridView1);
-            this.Initial_columns(sender, this.dataGridView2);
-            this.Initial_columns(sender, this.dataGridView3);
-            this.Initial_columns(sender, this.dataGridView4);
-            this.Initial_columns(sender, this.dataGridView5);
 
-            // 两个较小的测试函数
-            // this.test_of_dataGridView1(sender, this.dataGridView1);
+            FileInfo file_process_class = new FileInfo(path);
 
-            // this.test_of_dataGridView2(sender);
 
-            // 以下这个函数含有整个程序的架构，至此，本程序框架基本搭好了
-            this.InitialAllType();
+            Shell32.Shell shell = new Shell32.ShellClass();
+
+
+            Folder folder = shell.NameSpace(path.Substring(0, path.LastIndexOf('\\')));
+
+            FolderItem item = folder.ParseName(path.Substring(path.LastIndexOf('\\') + 1));
+
+            Dictionary<string, string> Properities = new Dictionary<string, string>();
+
+            int i = 0;
+
+            while (true)
+            {
+                string key = folder.GetDetailsOf(null, i);
+                if (string.IsNullOrEmpty(key))
+                {
+                    break;
+                }
+                string value = folder.GetDetailsOf(item, i);
+
+                // 这里需要适当的异常处理
+                if (!Properities.ContainsKey(key))
+                    Properities.Add(key, value);
+
+                i++;
+            }
+
+            // 这个ShellClass的API应当如何使用呢？网上暂时找不到资料？
+
+            return Properities;
         }
 
-        private void menuStrip1_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+
+        private void GetServicesInfo()
         {
+            // 获取service的信息喽
 
-        }
+            // HKLM\System\CurrentControlSet\Services				2021/6/4 17:48	
+            // 很显然，services类禁止直接读取
+            string path1 = "System\\CurrentControlSet\\Services";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key1 = new List<string>();
+            list_of_register_key1.Add(path1);
 
-        private void dataGridView5_CellContentClick(object sender, DataGridViewCellEventArgs e)
-        {
+            // 这里完成了公用代码封装，还算是比较合理的
 
-        }
+            // 这里是包装类的区别，也就是包装类区别的原因
+            this.putDataIntoList(list_of_register_key1, this.ServiceList, localMachine, "Service");
 
-        private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
+            return;
         }
     }
 }
