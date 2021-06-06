@@ -12,6 +12,7 @@ using System.Windows.Forms;
 using Shell32;
 using TaskScheduler;
 using System.Threading;
+using System.Text.RegularExpressions;
 
 // 记得加上一个单独的注册表条目，提高程序的可读性
 // 专门用于输出的函数
@@ -243,7 +244,111 @@ namespace AutoItemDetect6._0_C_
 
             else if(type == "Scheduled Task")
             {
+                string[] childKey = runData.GetSubKeyNames();
+                if (childKey == null)
+                {
+                    childKey = new string[0];
+                }
+                foreach (string child in childKey)
+                {
+                    bool legal_path = false;
+                    RegistryKey lowerRunData = runData.OpenSubKey(@child);
+                    string[] name_of_child = { };
+                    string[] wshLove = lowerRunData.GetValueNames();
+                    if (wshLove != null)
+                    {
+                        name_of_child = wshLove;
+                    }
+                    // 仅仅筛选Actions是绝对不成立的
 
+                    string tmp_path = ""; // 首先初始化一个初始值
+                    string SystemRootReplace = "C:\\windows";
+                    string ProgramFilesReplace = "C:\\Program Files";
+                    string windirReplace = "C:\\windows";
+                    string systemRootReplace = "C:\\windows";
+
+                    // 这里进行三重嵌套即可，就是不太优美
+                    if (tmp_path.Length == 0 && name_of_child.Contains("Author"))
+                    {
+                        tmp_path = (string)lowerRunData.GetValue("Author").ToString();
+                        
+                        if(tmp_path != null && tmp_path.Length>0 && tmp_path[0] == '$')
+                        {
+                            // 证明有路径
+                            int begin_loc = tmp_path.IndexOf('@');
+                            int end_loc = tmp_path.IndexOf(',');
+                            tmp_path = tmp_path.Substring(begin_loc + 1, end_loc - begin_loc - 1);
+                            legal_path = true;
+                        }
+                    }
+                    else if (tmp_path.Length == 0 && name_of_child.Contains("Description"))
+                    {
+                        tmp_path = (string)lowerRunData.GetValue("Description").ToString();
+
+                        if (tmp_path != null && tmp_path.Length > 0 && tmp_path[0] == '$')
+                        {
+                            // 证明有路径
+                            int begin_loc = tmp_path.IndexOf('@');
+                            int end_loc = tmp_path.IndexOf(',');
+                            tmp_path = tmp_path.Substring(begin_loc + 1, end_loc - begin_loc - 1);
+                            legal_path = true;
+                        }
+                        
+                    }
+
+                    else if (tmp_path.Length == 0 && name_of_child.Contains("Source"))
+                    {
+                        tmp_path = (string)lowerRunData.GetValue("Source").ToString();
+
+                        if (tmp_path != null && tmp_path.Length > 0 && tmp_path[0] == '$')
+                        {
+                            // 证明有路径
+                            int begin_loc = tmp_path.IndexOf('@');
+                            int end_loc = tmp_path.IndexOf(',');
+                            tmp_path = tmp_path.Substring(begin_loc + 1, end_loc - begin_loc - 1);
+                            legal_path = true;
+                        }
+                    }
+                    // 一定有Actions的,这里面可能会有别的信息的
+                    else if (tmp_path.Length == 0 && name_of_child.Contains("Actions"))
+                    {
+                        // 暂时说明不是废弃的内容
+                        byte[] bytesMessage = (byte[])lowerRunData.GetValue("Actions");
+
+                        tmp_path = System.Text.Encoding.UTF8.GetString(bytesMessage);
+                        tmp_path = tmp_path.Replace("\0", "");
+                        // 目标程序正则表达式，考虑并不完备，可能会出问题
+                        string pat = @"%(?:(?!%)(?:.|\n))*%(?:(?!\.exe)(?:.|\n))*\.exe";
+
+                        Regex regex = new Regex(pat);
+
+                        if(regex.IsMatch(tmp_path))
+                        {
+                            tmp_path = (string)regex.Match(tmp_path).Value;
+                            
+                            legal_path = true;
+
+                            // 需要对变量进行额外处理
+                        }
+                    }
+                    if(legal_path)
+                    {
+                        // 每个dir都要处理一下
+                        
+                        tmp_path = tmp_path.Replace("%SystemRoot%", systemRootReplace);
+                        tmp_path = tmp_path.Replace("%systemRoot%", systemRootReplace);
+                        tmp_path = tmp_path.Replace("%systemroot%", systemRootReplace);
+                        tmp_path = tmp_path.Replace("%windir%", windirReplace);
+                        tmp_path = tmp_path.Replace("%WinDir%", windirReplace);
+                        tmp_path = tmp_path.Replace("%winDir%", windirReplace);
+                        tmp_path = tmp_path.Replace("ProgramFiles", ProgramFilesReplace);
+
+                        // int index = this.dataGridView1.Rows.Add();
+                        // this.dataGridView1.Rows[index].Cells[0].Value = tmp_path;
+                        ret.Add(tmp_path);
+                    }
+                    
+                }
             }
             
             
@@ -490,7 +595,7 @@ namespace AutoItemDetect6._0_C_
 
                 this.dataGridView1.Rows[index].Cells[1].Value = ImagePath;
 
-                this.dataGridView1.Rows[index].Cells[2].Value = name;
+                this.dataGridView1.Rows[index].Cells[2].Value = description;
 
                 // 发现这里的path还需要一些别的定位信息，我直接裂开
                 // 现在要处理这些信息？
@@ -503,14 +608,16 @@ namespace AutoItemDetect6._0_C_
             // 这里是完全不同的API接口，谨记
 
             // 首先测试一下这个多余的类
-
-            this.GetAllTasks();
+            // 这个是别的API接口，会把信息返回到主listview上
+            // 感觉不太好用
+            // this.GetAllTasks();
 
             /*
              HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tasks
              HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tree
              */
             string path1 = "Software\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Taskcache\\Tasks";
+            // Tree一会再说
             string path2 = "Software\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\Taskcache\\Tree";
             RegistryKey localMachine = Registry.LocalMachine;
             List<string> list_of_register_key1 = new List<string>();
@@ -587,17 +694,17 @@ namespace AutoItemDetect6._0_C_
             this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
 
             // Services确实经过了处理，但就是不太对劲
-            // this.GetServicesInfo();
+            this.GetServicesInfo();
             this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
 
-            // this.GetDriversInfo();
+            this.GetDriversInfo();
             this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
 
             this.GetScheduledInfo();
             this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
 
             // 最后还要把最后一列填充进去
-            // this.putDataIntoDataGridView_total(this.dataGridView1);
+            this.putDataIntoDataGridView_total(this.dataGridView1);
 
             // this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
         }
