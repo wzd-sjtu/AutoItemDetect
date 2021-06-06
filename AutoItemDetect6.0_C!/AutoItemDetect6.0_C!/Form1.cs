@@ -27,13 +27,94 @@ namespace AutoItemDetect6._0_C_
             InitializeComponent();
         }
 
-        // 四个链表
-        private delegate void MyDelegate(List<TargetInformation> infoList, DataGridView targetDataGridView);
+        // 这个委托，确实是不好理解
+        private class TestClass
+        {
+            // 一些委托的尝试
+            public delegate List<TargetInformation> getTargetInformation();
+            public getTargetInformation deleMyDelegate;
 
+            public void test_method()
+            {
+                // 无参数的方法？难以理解
+                // 最终还是要进行封装
+                deleMyDelegate();
+                return;
+            }
+        }
+        
+        private void button2_Click(object sender, EventArgs e)
+        {
+            TestClass testclass = new TestClass();
+
+            testclass.deleMyDelegate = new TestClass.getTargetInformation(GetLogonInfo_Test);
+
+            // 挂载了一个方法
+            Thread testclassThread = new Thread(new ThreadStart(testclass.test_method));
+
+            testclassThread.Start(); //开启新的线程
+        }
+
+        private List<TargetInformation> GetLogonInfo_Test()
+        {
+            // 和这个链表绑定？
+
+
+            if(this.dataGridView2.InvokeRequired)
+            {
+                TestClass testclass = new TestClass();
+
+                testclass.deleMyDelegate = new TestClass.getTargetInformation(GetLogonInfo_Test);
+
+                this.Invoke(testclass.deleMyDelegate);
+            }
+            else
+            {
+                // 写入内容
+                this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
+            }
+            List<TargetInformation> tmp = new List<TargetInformation>();
+
+            string path1 = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+            RegistryKey currentUser = Registry.CurrentUser;
+            List<string> list_of_register_key1 = new List<string>();
+            list_of_register_key1.Add(path1);
+
+            // 这里完成了公用代码封装，还算是比较合理的
+            // 这个链表需要和前台分离？
+            this.putDataIntoList(list_of_register_key1, tmp, currentUser, "Logon");
+
+
+            // 下面是另一个注册表类的封装，内容总归是合理的
+            string path2 = "SYSTEM\\CurrentControlSet\\Control\\SafeBoot\\AlternateShell";
+            string path3 = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
+            string path4 = "SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run";
+            string path5 = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders\\Common Startup";
+            string path6 = "SOFTWARE\\Microsoft\\Active Setup\\Installed Components";
+            string path7 = "SOFTWARE\\Wow6432Node\\Microsoft\\Active Setup\\Installed Components";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key2 = new List<string>();
+
+            list_of_register_key2.Add(path2);
+            list_of_register_key2.Add(path3);
+            list_of_register_key2.Add(path4);
+            list_of_register_key2.Add(path5);
+            list_of_register_key2.Add(path6);
+            list_of_register_key2.Add(path7);
+
+            // 取出数据
+            this.putDataIntoList(list_of_register_key2, tmp, localMachine, "Logon");
+            return tmp;
+        }
+
+        // 四个链表
         private List<TargetInformation> LogonList;
         private List<TargetInformation> DriversList;
         private List<TargetInformation> ServiceList;
         private List<TargetInformation> ScheduledList;
+
+        // 委托包装类
+
         // 给各个表格加上列名
         private class TargetInformation
         {
@@ -65,6 +146,7 @@ namespace AutoItemDetect6._0_C_
 
         // 获取注册表下所有键值的路径，被优化过的路径
         // 需要在外面提供主键类+注册表子键具体路径
+        // 底层核心函数
         private List<string> GetTargetPath(RegistryKey targetKeyType, string registerTablePath, string type)
         {
 
@@ -358,6 +440,7 @@ namespace AutoItemDetect6._0_C_
 
         // 传递具体路径，获取解析后的类
         // type是存下的冗余接口
+        // 此处从获得的路径，调用win32 shell32 api，获得对应详细信息得函数
         private TargetInformation GetPathDetailedInfo(string path, string type)
         {
             if (path == null) return new TargetInformation();
@@ -459,6 +542,7 @@ namespace AutoItemDetect6._0_C_
         }
 
         // type是冗余参数，可以任意取值，是没有意义的参数
+        // 这是核心函数，从注册表链接中扫描，分情况处理所有的信息
         private void putDataIntoList(List<string> registerTablePath, List<TargetInformation> target, RegistryKey MainKey, string type)
         {
             
@@ -470,8 +554,6 @@ namespace AutoItemDetect6._0_C_
                 TargetInformation highestLevel = new TargetInformation();
                 highestLevel.isSingleData = false;
 
-                // 很多别的地方的系统权限注册表无法读取，应当是没有调用对应的接口，导致无法获取
-                // 现在整个程序需要向虚拟机转移，从而完成最终的目标
                 string tmp_path = "";
                 if(MainKey == Registry.LocalMachine)
                 {
@@ -501,12 +583,14 @@ namespace AutoItemDetect6._0_C_
             return;
         }
 
-        // 以下四个函数，就是为了快速填充链表的，效果貌似还可以喽？
-        // 刚刚处理完Logon类，这个类别算是完整的
-        private void GetLogonInfo()
+        // 以下四个函数，就是为了快速填充链表的，填充注册表路径链表
+        private List<TargetInformation> GetLogonInfo()
         {
             // 和这个链表绑定？
+
             
+
+            List<TargetInformation> tmp = new List<TargetInformation>();
 
             string path1 = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
             RegistryKey currentUser = Registry.CurrentUser;
@@ -514,7 +598,8 @@ namespace AutoItemDetect6._0_C_
             list_of_register_key1.Add(path1);
 
             // 这里完成了公用代码封装，还算是比较合理的
-            this.putDataIntoList(list_of_register_key1, this.LogonList, currentUser, "Logon");
+            // 这个链表需要和前台分离？
+            this.putDataIntoList(list_of_register_key1, tmp, currentUser, "Logon");
 
 
             // 下面是另一个注册表类的封装，内容总归是合理的
@@ -535,13 +620,13 @@ namespace AutoItemDetect6._0_C_
             list_of_register_key2.Add(path7);
 
             // 取出数据
-            this.putDataIntoList(list_of_register_key2, this.LogonList, localMachine, "Logon");
-            return;
+            this.putDataIntoList(list_of_register_key2, tmp, localMachine, "Logon");
+            return tmp;
         }
-        private void GetDriversInfo()
+        private List<TargetInformation> GetDriversInfo()
         {
             // 读取位置和GetServicesInfo完全相似
-
+            List<TargetInformation> tmp = new List<TargetInformation>();
             string path1 = "System\\CurrentControlSet\\Services";
             RegistryKey localMachine = Registry.LocalMachine;
             List<string> list_of_register_key1 = new List<string>();
@@ -550,60 +635,28 @@ namespace AutoItemDetect6._0_C_
             // 这里完成了公用代码封装，还算是比较合理的
 
             // 这里是包装类的区别，也就是包装类区别的原因
-            this.putDataIntoList(list_of_register_key1, this.DriversList, localMachine, "Driver");
+            this.putDataIntoList(list_of_register_key1, tmp, localMachine, "Driver");
 
-            return;
+            return tmp;
         }
-
-        // 这里使用的是操作计划任务的位置，实际上读取注册表是更加合理的
-        private IRegisteredTaskCollection GetAllTasks()
+        // 获取services的信息
+        private List<TargetInformation> GetServicesInfo()
         {
-            TaskSchedulerClass ts = new TaskSchedulerClass();
-            ts.Connect(null, null, null, null);
-            ITaskFolder folder = ts.GetFolder("\\");
-            IRegisteredTaskCollection task_exists = folder.GetTasks(1);
+            // 获取service的信息喽
+            List<TargetInformation> tmp = new List<TargetInformation>();
+            // HKLM\System\CurrentControlSet\Services				2021/6/4 17:48	
+            // 很显然，services类禁止直接读取
+            string path1 = "System\\CurrentControlSet\\Services";
+            RegistryKey localMachine = Registry.LocalMachine;
+            List<string> list_of_register_key1 = new List<string>();
+            list_of_register_key1.Add(path1);
 
+            // 这里是包装类的区别，也就是包装类区别的原因
+            this.putDataIntoList(list_of_register_key1, tmp, localMachine, "Service");
 
-            for(int i=1; i<=task_exists.Count; i++)
-            {
-                IRegisteredTask t = task_exists[i];
-
-                /*
-                public string Name;
-                public string Description;
-                public string ImagePath;
-                public string Publisher;
-                public string timeStamp;
-                public string size;
-                public string owner;
-                // 中式编程 版权
-                public string banquan;
-                public string type;
-
-                public bool isSingleData;
-                */
-
-                string description = t.Definition.Data;
-                string name = t.Name;
-                string ImagePath = t.Path;
-                // 更加详细的信息，需要通过path存取
-
-
-                int index = this.dataGridView1.Rows.Add();
-
-                this.dataGridView1.Rows[index].Cells[0].Value = name;
-
-                this.dataGridView1.Rows[index].Cells[1].Value = ImagePath;
-
-                this.dataGridView1.Rows[index].Cells[2].Value = description;
-
-                // 发现这里的path还需要一些别的定位信息，我直接裂开
-                // 现在要处理这些信息？
-
-            }
-            return task_exists;
+            return tmp;
         }
-        private void GetScheduledInfo()
+        private List<TargetInformation> GetScheduledInfo()
         {
             // 这里是完全不同的API接口，谨记
 
@@ -611,7 +664,7 @@ namespace AutoItemDetect6._0_C_
             // 这个是别的API接口，会把信息返回到主listview上
             // 感觉不太好用
             // this.GetAllTasks();
-
+            List<TargetInformation> tmp = new List<TargetInformation>();
             /*
              HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tasks
              HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\Taskcache\Tree
@@ -629,12 +682,12 @@ namespace AutoItemDetect6._0_C_
             // 这里完成了公用代码封装，还算是比较合理的
 
             // 这里是包装类的区别，也就是包装类区别的原因
-            this.putDataIntoList(list_of_register_key1, this.ScheduledList, localMachine, "Scheduled Task");
+            this.putDataIntoList(list_of_register_key1, tmp, localMachine, "Scheduled Task");
 
-            return;
+            return tmp;
         }
         
-
+        // 将结构体链表的所有信息放入结构体中
         private void putDataIntoDataGridView(List<TargetInformation> infoList, DataGridView targetDataGridView)
         {
             // 循环遍历，将数据一点点填入这个表格，内容总是清晰地
@@ -669,9 +722,6 @@ namespace AutoItemDetect6._0_C_
                     // Autorun Entry
                     targetDataGridView.Rows[index].Cells[0].Value = tmp.ImagePath;
                 }
-                
-
-
             }
 
             return;
@@ -690,17 +740,20 @@ namespace AutoItemDetect6._0_C_
         {
 
             // 核心就是这个数据处理冲突了
-            this.GetLogonInfo();
+            // 用的数据结构仍然是主线程的内容，明显是有问题的，需要使用传递参数的方式来更新
+
+            // 不妨修改函数逻辑
+            this.LogonList = this.GetLogonInfo();
             this.putDataIntoDataGridView(this.LogonList, this.dataGridView2);
 
             // Services确实经过了处理，但就是不太对劲
-            this.GetServicesInfo();
+            this.ServiceList = this.GetServicesInfo();
             this.putDataIntoDataGridView(this.ServiceList, this.dataGridView3);
 
-            this.GetDriversInfo();
+            this.DriversList = this.GetDriversInfo();
             this.putDataIntoDataGridView(this.DriversList, this.dataGridView4);
 
-            this.GetScheduledInfo();
+            this.ScheduledList = this.GetScheduledInfo();
             this.putDataIntoDataGridView(this.ScheduledList, this.dataGridView5);
 
             // 最后还要把最后一列填充进去
@@ -732,7 +785,7 @@ namespace AutoItemDetect6._0_C_
 
 
 
-        // 三个比较简单的处理类，类似于一个小工具
+        // 几个比较简单的处理类，写代码封装的代码块
         // 初始化表格列名
         private void Initial_columns(object sender, DataGridView tmp)
         {
@@ -882,7 +935,7 @@ namespace AutoItemDetect6._0_C_
                 string value = folder.GetDetailsOf(item, i);
 
                 // 这里需要适当的异常处理
-                this.listView1.Items.Add(value);
+                // this.listView1.Items.Add(value);
                 i++;
             }
         }
@@ -901,7 +954,7 @@ namespace AutoItemDetect6._0_C_
             ListViewItem tmp = new ListViewItem(
                 new string[] { "path" });
 
-            this.listView1.Items.Add(tmp);
+            // this.listView1.Items.Add(tmp);
 
             // 这里涉及到内容提取了
 
@@ -968,7 +1021,7 @@ namespace AutoItemDetect6._0_C_
             ListViewItem tmp = new ListViewItem(
                 new string[] { "path" });
 
-            this.listView1.Items.Add(tmp);
+            // this.listView1.Items.Add(tmp);
 
             // 这里涉及到内容提取了
 
@@ -1015,9 +1068,9 @@ namespace AutoItemDetect6._0_C_
                 target_dataGridView.Rows[index].Cells[0].Value = val;
             }
 
-            this.listView1.Items.Add("\n" + res);
+            // this.listView1.Items.Add("\n" + res);
 
-            this.listView1.Items.Add("\n" + res);
+            // this.listView1.Items.Add("\n" + res);
 
             return;
         }
@@ -1062,24 +1115,58 @@ namespace AutoItemDetect6._0_C_
             return Properities;
         }
 
+        
 
-        private void GetServicesInfo()
+        // 这里使用的是操作计划任务的位置，实际上读取注册表是更加合理的
+        // 这种方法就被舍弃了
+        private IRegisteredTaskCollection GetAllTasks()
         {
-            // 获取service的信息喽
+            TaskSchedulerClass ts = new TaskSchedulerClass();
+            ts.Connect(null, null, null, null);
+            ITaskFolder folder = ts.GetFolder("\\");
+            IRegisteredTaskCollection task_exists = folder.GetTasks(1);
 
-            // HKLM\System\CurrentControlSet\Services				2021/6/4 17:48	
-            // 很显然，services类禁止直接读取
-            string path1 = "System\\CurrentControlSet\\Services";
-            RegistryKey localMachine = Registry.LocalMachine;
-            List<string> list_of_register_key1 = new List<string>();
-            list_of_register_key1.Add(path1);
 
-            // 这里完成了公用代码封装，还算是比较合理的
+            for (int i = 1; i <= task_exists.Count; i++)
+            {
+                IRegisteredTask t = task_exists[i];
 
-            // 这里是包装类的区别，也就是包装类区别的原因
-            this.putDataIntoList(list_of_register_key1, this.ServiceList, localMachine, "Service");
+                /*
+                public string Name;
+                public string Description;
+                public string ImagePath;
+                public string Publisher;
+                public string timeStamp;
+                public string size;
+                public string owner;
+                // 中式编程 版权
+                public string banquan;
+                public string type;
 
-            return;
+                public bool isSingleData;
+                */
+
+                string description = t.Definition.Data;
+                string name = t.Name;
+                string ImagePath = t.Path;
+                // 更加详细的信息，需要通过path存取
+
+
+                int index = this.dataGridView1.Rows.Add();
+
+                this.dataGridView1.Rows[index].Cells[0].Value = name;
+
+                this.dataGridView1.Rows[index].Cells[1].Value = ImagePath;
+
+                this.dataGridView1.Rows[index].Cells[2].Value = description;
+
+                // 发现这里的path还需要一些别的定位信息，我直接裂开
+                // 现在要处理这些信息？
+
+            }
+            return task_exists;
         }
+
+        
     }
 }
